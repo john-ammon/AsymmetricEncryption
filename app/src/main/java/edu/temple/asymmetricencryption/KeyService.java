@@ -2,10 +2,13 @@ package edu.temple.asymmetricencryption;
 
 import android.app.Service;
 import android.content.Intent;
+import android.os.Binder;
 import android.os.IBinder;
+import android.util.Base64;
 
 import java.math.BigInteger;
 import java.security.InvalidAlgorithmParameterException;
+import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
@@ -14,15 +17,34 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.interfaces.RSAPublicKey;
 import java.security.spec.AlgorithmParameterSpec;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.HashMap;
+import java.util.Map;
+
+import javax.crypto.Cipher;
+import javax.crypto.NoSuchPaddingException;
 
 public class KeyService extends Service {
+
+    Map<String, String> storedPublicKeys;
+    PublicKey myPublicKey;
+    PrivateKey myPrivateKey;
+    private final IBinder mBinder = new LocalBinder();
+
+    public class LocalBinder extends Binder {
+        KeyService getService() {
+            return KeyService.this;
+        }
+    }
+
     public KeyService() {
     }
 
     @Override
     public IBinder onBind(Intent intent) {
-        // TODO: Return the communication channel to the service.
-        throw new UnsupportedOperationException("Not yet implemented");
+        storedPublicKeys = new HashMap<>();
+        return mBinder;
     }
 
     //Generate and/or retrieve a user’s RSA KeyPair. The first call to this method will generate
@@ -30,56 +52,44 @@ public class KeyService extends Service {
     KeyPair getMyKeyPair() {
 
         KeyPair keyPair;
-        KeyPairGenerator kpg;
 
-        // TODO: if the keypair does not exist yet
-        if(true) {
+        // if the keypair does not exist yet
+        if(myPrivateKey == null || myPrivateKey == null) {
             try {
-                kpg = KeyPairGenerator.getInstance("RSA");
-                kpg.initialize(2048, new SecureRandom());
-                keyPair = kpg.generateKeyPair();
+                KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+                keyPairGenerator.initialize(2048);
+                keyPair = keyPairGenerator.generateKeyPair();
+                myPrivateKey = keyPair.getPrivate();
+                myPublicKey = keyPair.getPublic();
                 return keyPair;
-            } catch(NoSuchAlgorithmException e) {
-                e.printStackTrace();
-            }
+            } catch(NoSuchAlgorithmException e) { e.printStackTrace(); }
+        // else the keypair does exist so retrieve it
         } else {
-            //TODO: get the stored keypair
+            keyPair = new KeyPair(myPublicKey, myPrivateKey);
+            return keyPair;
         }
         return null;
     }
 
     //Store a key for a provided partner name
-    void storePublicKey(String partnerName) {
-
+    void storePublicKey(String partnerName, String publicKey) {
+        storedPublicKeys.put(partnerName, publicKey);
     }
 
     //Returns the public key associated with the provided partner name
-    RSAPublicKey getPublicKey(String partnerName) {
-        return new RSAPublicKey() {
-            @Override
-            public BigInteger getPublicExponent() {
-                return null;
-            }
-
-            @Override
-            public String getAlgorithm() {
-                return null;
-            }
-
-            @Override
-            public String getFormat() {
-                return null;
-            }
-
-            @Override
-            public byte[] getEncoded() {
-                return new byte[0];
-            }
-
-            @Override
-            public BigInteger getModulus() {
-                return null;
-            }
-        };
+    RSAPublicKey getPublicKey(String partnerName) throws InvalidKeySpecException {
+        String publicKey = storedPublicKeys.get(partnerName);
+        byte[] publicBytes = Base64.decode(publicKey, Base64.DEFAULT);
+        X509EncodedKeySpec keySpec = new X509EncodedKeySpec(publicBytes);
+        KeyFactory keyFactory = null;
+        
+        try {
+            keyFactory = KeyFactory.getInstance("RSA");
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
+        
+        RSAPublicKey rsaPublicKey = (RSAPublicKey) keyFactory.generatePublic(keySpec);
+        return rsaPublicKey;
     }
 }
