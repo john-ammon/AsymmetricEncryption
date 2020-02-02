@@ -39,11 +39,12 @@ public class KeyService extends Service {
     }
 
     public KeyService() {
+        storedPublicKeys = new HashMap<>();
     }
 
     @Override
     public IBinder onBind(Intent intent) {
-        storedPublicKeys = new HashMap<>();
+        
         return mBinder;
     }
 
